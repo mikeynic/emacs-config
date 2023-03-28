@@ -7,13 +7,26 @@
 (tool-bar-mode -1)          ; Disable the toolbar
 (tooltip-mode -1)           ; Disable tooltips
 (set-fringe-mode 10)        ; Give some breathing room
+(set-default 'truncate-lines t)
 
 (menu-bar-mode -1)            ; Disable the menu bar
 
+(setq display-line-numbers-type 'relative)
+
 ;; Set up the visible bell
-(setq visible-bell t)
+(setq visible-bell 1)
 
 ;(set-face-attribute 'default nil :font "Fira Code Retina" :height runemacs/default-font-size)
+
+;; Font Configuration ----------------------------------------------------------
+
+(set-face-attribute 'default nil :font "DejaVu Sans Mono-10") ;:height runemacs/default-font-size)
+
+;; Set the fixed pitch face
+(set-face-attribute 'fixed-pitch nil :font "DejaVu Sans Mono-10") ;:height 260)
+
+;; Set the variable pitch face
+(set-face-attribute 'variable-pitch nil :font "DejaVu Sans") ;:height 295 :weight 'regular)
 
 ;; Make ESC quit prompts
 (global-set-key (kbd "<escape>") 'keyboard-escape-quit)
@@ -120,7 +133,10 @@
 
   (rune/leader-keys
     "t"  '(:ignore t :which-key "toggles")
-    "tt" '(counsel-load-theme :which-key "choose theme")))
+    "tt" '(counsel-load-theme :which-key "choose theme")
+    "ff" '(find-file :which-key "find-file")
+    "/"  '(comment-or-uncomment-region :which-key "comment-region toggle")
+    "fb" '(switch-to-buffer :which-key "switch buffer")))
 
 (use-package evil
   :init
@@ -145,26 +161,103 @@
   :config
   (evil-collection-init))
 
-;; (use-package hydra)
+(use-package hydra)
 
-;; (defhydra hydra-text-scale (:timeout 4)
-;;   "scale text"
-;;   ("j" text-scale-increase "in")
-;;   ("k" text-scale-decrease "out")
-;;   ("f" nil "finished" :exit t))
+(defhydra hydra-text-scale (:timeout 4)
+  "scale text"
+  ("j" text-scale-increase "in")
+  ("k" text-scale-decrease "out")
+  ("f" nil "finished" :exit t))
 
-;; (rune/leader-keys
-;;   "ts" '(hydra-text-scale/body :which-key "scale text"))
-;; (custom-set-variables
-;;  ;; custom-set-variables was added by Custom.
-;;  ;; If you edit it by hand, you could mess it up, so be careful.
-;;  ;; Your init file should contain only one such instance.
-;;  ;; If there is more than one, they won't work right.
-;;  '(package-selected-packages
-;;    '(hydra evil-collection ivy-rich cmake-mode which-key use-package rainbow-delimiters helpful general evil doom-themes doom-modeline counsel command-log-mode all-the-icons)))
-;; (custom-set-faces
-;;  ;; custom-set-faces was added by Custom.
-;;  ;; If you edit it by hand, you could mess it up, so be careful.
-;;  ;; Your init file should contain only one such instance.
-;;  ;; If there is more than one, they won't work right.
-;;  )
+(rune/leader-keys
+  "ts" '(hydra-text-scale/body :which-key "scale text"))
+
+(use-package projectile
+  :diminish projectile-mode
+  :config (projectile-mode)
+  :custom ((projectile-completion-system 'ivy))
+  :bind-keymap
+  ("C-c p" . projectile-command-map)
+  :init
+  (when (file-directory-p "~/Projects/Code")
+    (setq projectile-project-search-path '("~/Projects/Code")))
+ 
+ (setq projectile-switch-project-action #'projectile-dired))
+
+(use-package counsel-projectile
+  :config (counsel-projectile-mode))
+
+(use-package magit
+  :custom
+   (magit-display-buffer-function #'magit-display-buffer-same-window-except-diff-v1))
+
+;; (use-package forge) ;needs a github login
+
+;; moved to evil-collection
+;;(use-package evil-magit
+;;:after magit)
+
+(use-package forge)
+
+;; Org Mode Configuration ------------------------------------------------------
+
+(defun efs/org-font-setup ()
+  ;; Replace list hyphen with dot
+  (font-lock-add-keywords 'org-mode
+                          '(("^ *\\([-]\\) "
+                             (0 (prog1 () (compose-region (match-beginning 1) (match-end 1) "•"))))))
+
+  ;; Set faces for heading levels
+  (dolist (face '((org-level-1 . 1.2)
+                  (org-level-2 . 1.1)
+                  (org-level-3 . 1.05)
+                  (org-level-4 . 1.0)
+                  (org-level-5 . 1.1)
+                  (org-level-6 . 1.1)
+                  (org-level-7 . 1.1)
+                  (org-level-8 . 1.1)))
+    (set-face-attribute (car face) nil :font "DejaVu Sans Mono-10" :weight 'regular :height (cdr face)))
+
+  ;; Ensure that anything that should be fixed-pitch in Org files appears that way
+  (set-face-attribute 'org-block nil :foreground nil :inherit 'fixed-pitch)
+  (set-face-attribute 'org-code nil   :inherit '(shadow fixed-pitch))
+  (set-face-attribute 'org-table nil   :inherit '(shadow fixed-pitch))
+  (set-face-attribute 'org-verbatim nil :inherit '(shadow fixed-pitch))
+  (set-face-attribute 'org-special-keyword nil :inherit '(font-lock-comment-face fixed-pitch))
+  (set-face-attribute 'org-meta-line nil :inherit '(font-lock-comment-face fixed-pitch))
+  (set-face-attribute 'org-checkbox nil :inherit 'fixed-pitch))
+
+(use-package org
+  :hook (org-mode . efs/org-mode-setup)
+  :config
+  (setq org-hide-emphasis-markers t)
+  (setq org-ellipsis " ▾")
+  (efs/org-font-setup))
+
+(use-package org-bullets
+  :after org
+  :hook (org-mode . org-bullets-mode)
+  :custom
+  (org-bullets-bullet-list '("◉" "○" "●" "○" "●" "○" "●")))
+
+;; (defun efs/org-mode-visual-fill ()
+;;   (setq visual-fill-column-width 100
+;;         visual-fill-column-center-text t)
+;;   (visual-fill-column-mode 1))
+
+;; (use-package visual-fill-column
+;;   :hook (org-mode . efs/org-mode-visual-fill))
+
+(custom-set-variables
+ ;; custom-set-variables was added by Custom.
+ ;; If you edit it by hand, you could mess it up, so be careful.
+ ;; Your init file should contain only one such instance.
+ ;; If there is more than one, they won't work right.
+ '(package-selected-packages
+   '(visual-fill-column cmake-mode which-key use-package rainbow-delimiters org-bullets ivy-rich hydra helpful general forge evil-collection doom-themes doom-modeline counsel-projectile command-log-mode all-the-icons)))
+(custom-set-faces
+ ;; custom-set-faces was added by Custom.
+ ;; If you edit it by hand, you could mess it up, so be careful.
+ ;; Your init file should contain only one such instance.
+ ;; If there is more than one, they won't work right.
+ )
